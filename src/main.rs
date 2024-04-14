@@ -10,13 +10,21 @@ mod pixel;
 const CPU_SPEED: u32 = 4; // 4 instructions per cycle
 
 fn main() {
+    // get rom path from command line
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 2 {
+        println!("Usage: chip8 <rom_path>");
+        return;
+    }
+    let rom_path = &args[1];
+
     let mut cpu = cpu::CPU::new();
     let mut display = pixel::PixelDisplay::new();
     let mut pixels = Pixel::init();
 
     let mut continue_emulation = true;
 
-    let start_emulation = cpu.load_rom("roms/Breakout.ch8");
+    let start_emulation = cpu.load_rom(&rom_path);
 
     if start_emulation {
         while continue_emulation {
