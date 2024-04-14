@@ -17,6 +17,8 @@ pub struct CPU {
     pub game_counter: u16,  // Game counter
     pub sound_counter: u16, // Sound counter
     pub pc: u16,            // Program counter
+    pub key: [bool; 16],    // Key
+    pub jp: Jump,           // Jump
 }
 
 impl CPU {
@@ -30,6 +32,8 @@ impl CPU {
             game_counter: 0,
             sound_counter: 0,
             pc: 0x200,
+            key: [false; 16],
+            jp: Jump::new(),
         };
 
         // Load font
@@ -183,8 +187,9 @@ impl CPU {
         screen: &mut PixelDisplay,
         pixels: &mut Vec<Pixel>,
     ) {
-        let jump = Jump::new();
-        let action = jump.get_action(opcode);
+        let action = self.jp.get_action(opcode);
+
+        println!("Action: {}", action);
 
         let b3 = (opcode & 0x0F00) >> 8;
         let b2 = (opcode & 0x00F0) >> 4;
@@ -310,19 +315,21 @@ impl CPU {
                 self.v[b3 as usize] = ((rand::random::<u16>()) % ((b2 << 4) + b1 + 1)) as i16;
             }
             23 => {
+                // DXYN : draw a sprite at position V[X], V[Y] with N bytes of sprite data
+                println!("b1: {:X}, b2: {:X}, b3: {:X}", b1, b2, b3);
                 Pixel::draw_screen(self, pixels, b1, b2, b3);
             }
             24 => {
                 // EX9E : skip next instruction if key with the value of V[X] is pressed
-                // if self.v[b3] == 0 {
-                //     self.pc += 2;
-                // }
+                if self.key[self.v[b3 as usize] as usize] {
+                    self.pc += 2;
+                }
             }
             25 => {
                 // EXA1 : skip next instruction if key with the value of V[X] is not pressed
-                // if self.v[b3] != 0 {
-                //     self.pc += 2;
-                // }
+                if !self.key[self.v[b3 as usize] as usize] {
+                    self.pc += 2;
+                }
             }
             26 => {
                 // FX07 : set V[X] = delay timer value
@@ -330,7 +337,7 @@ impl CPU {
             }
             27 => {
                 // FX0A : wait for a key press, store the value of the key in V[X]
-                // self.v[b3] = 0;
+                screen.wait_key_pressed(self);
             }
             28 => {
                 // FX15 : set delay timer = V[X]
@@ -382,9 +389,9 @@ impl CPU {
     }
 }
 
-struct Jump {
-    mask: [u16; NUMBER_OPCODES],
-    id: [u16; NUMBER_OPCODES],
+pub struct Jump {
+    pub mask: [u16; NUMBER_OPCODES],
+    pub id: [u16; NUMBER_OPCODES],
 }
 
 impl Jump {
@@ -538,12 +545,10 @@ impl Jump {
     }
 
     pub fn get_action(&self, opcode: u16) -> u16 {
-        let jp = Jump::new();
-
         for action in 0..NUMBER_OPCODES {
-            let result = jp.mask[action] & opcode;
+            let result = self.mask[action] & opcode;
 
-            if result == jp.id[action] {
+            if result == self.id[action] {
                 return action as u16;
             }
         }

@@ -54,16 +54,94 @@ impl PixelDisplay {
             .unwrap();
     }
 
-    pub fn get_key(&mut self) -> Option<Key> {
-        let keys = [Key::Escape];
+    pub fn get_key_down(&mut self) -> Option<Key> {
+        let keys = [
+            Key::Escape,
+            Key::NumPad7,
+            Key::NumPad8,
+            Key::NumPad9,
+            Key::NumPadAsterisk,
+            Key::NumPad4,
+            Key::NumPad5,
+            Key::NumPad6,
+            Key::NumPadMinus,
+            Key::NumPad1,
+            Key::NumPad2,
+            Key::NumPad3,
+            Key::NumPadPlus,
+            Key::Right,
+            Key::NumPad0,
+            Key::NumPadDot,
+            Key::NumPadEnter,
+        ];
 
         for key in keys.iter() {
             if self.window.is_key_down(*key) {
+                println!("Key pressed: {:?}", key);
                 return Some(*key);
             }
         }
 
         None
+    }
+
+    pub fn get_key_up(&mut self) -> Option<Key> {
+        let keys = [
+            Key::Escape,
+            Key::NumPad7,
+            Key::NumPad8,
+            Key::NumPad9,
+            Key::NumPadAsterisk,
+            Key::NumPad4,
+            Key::NumPad5,
+            Key::NumPad6,
+            Key::NumPadMinus,
+            Key::NumPad1,
+            Key::NumPad2,
+            Key::NumPad3,
+            Key::NumPadPlus,
+            Key::Right,
+            Key::NumPad0,
+            Key::NumPadDot,
+            Key::NumPadEnter,
+        ];
+
+        for key in keys.iter() {
+            if self.window.is_key_released(*key) {
+                println!("Key released: {:?}", key);
+                return Some(*key);
+            }
+        }
+
+        None
+    }
+
+    pub fn wait_key_pressed(&mut self, cpu: &mut CPU) {
+        println!("Waiting for key pressed");
+        loop {
+            if let Some(key) = self.get_key_down() {
+                match key {
+                    Key::NumPad7 => cpu.key[0] = true,
+                    Key::NumPad8 => cpu.key[1] = true,
+                    Key::NumPad9 => cpu.key[2] = true,
+                    Key::NumPadAsterisk => cpu.key[3] = true,
+                    Key::NumPad4 => cpu.key[4] = true,
+                    Key::NumPad5 => cpu.key[5] = true,
+                    Key::NumPad6 => cpu.key[6] = true,
+                    Key::NumPadMinus => cpu.key[7] = true,
+                    Key::NumPad1 => cpu.key[8] = true,
+                    Key::NumPad2 => cpu.key[9] = true,
+                    Key::NumPad3 => cpu.key[10] = true,
+                    Key::NumPadPlus => cpu.key[11] = true,
+                    Key::Right => cpu.key[12] = true,
+                    Key::NumPad0 => cpu.key[13] = true,
+                    Key::NumPadDot => cpu.key[14] = true,
+                    Key::NumPadEnter => cpu.key[15] = true,
+                    _ => {}
+                }
+            }
+            break;
+        }
     }
 }
 
@@ -114,7 +192,10 @@ impl Pixel {
 
         for k in 0..b1 {
             // Get the code of the line to draw
+            println!("I: {:X}", cpu.i);
+            println!("K: {:X}", k);
             code = cpu.memory[(cpu.i + k) as usize];
+            println!("Code: {:X}", code);
 
             // Get the ordinate of the line to draw
             y = (cpu.v[b2 as usize] + k as i16) % LENGTH_HEIGHT as i16;
