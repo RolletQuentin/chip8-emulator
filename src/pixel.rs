@@ -77,7 +77,6 @@ impl PixelDisplay {
 
         for key in keys.iter() {
             if self.window.is_key_down(*key) {
-                println!("Key pressed: {:?}", key);
                 return Some(*key);
             }
         }
@@ -108,7 +107,6 @@ impl PixelDisplay {
 
         for key in keys.iter() {
             if self.window.is_key_released(*key) {
-                println!("Key released: {:?}", key);
                 return Some(*key);
             }
         }
@@ -117,7 +115,6 @@ impl PixelDisplay {
     }
 
     pub fn wait_key_pressed(&mut self, cpu: &mut CPU) {
-        println!("Waiting for key pressed");
         loop {
             if let Some(key) = self.get_key_down() {
                 match key {
@@ -192,28 +189,25 @@ impl Pixel {
 
         for k in 0..b1 {
             // Get the code of the line to draw
-            println!("I: {:X}", cpu.i);
-            println!("K: {:X}", k);
             code = cpu.memory[(cpu.i + k) as usize];
-            println!("Code: {:X}", code);
 
             // Get the ordinate of the line to draw
-            y = (cpu.v[b2 as usize] + k as i16) % LENGTH_HEIGHT as i16;
+            y = ((cpu.v[b2 as usize] + k as u8) % LENGTH_HEIGHT as u8) as u16;
 
             shift = 7;
             for j in 0..8 {
                 // Get the abscissa of the pixel to draw
-                x = (cpu.v[b3 as usize] + j) % LENGTH_WIDTH as i16;
+                x = ((cpu.v[b3 as usize] + j) % LENGTH_WIDTH as u8) as u16;
 
                 // Get the color of the pixel to draw
                 if ((code) & (0x1 << shift)) != 0 {
-                    let color = if pixels[(y * LENGTH_WIDTH as i16 + x) as usize].color == BLACK {
+                    let color = if pixels[(y * LENGTH_WIDTH + x) as usize].color == BLACK {
                         WHITE
                     } else {
                         cpu.v[0xF] = 1;
                         BLACK
                     };
-                    pixels[(y * LENGTH_WIDTH as i16 + x) as usize].color = color;
+                    pixels[(y * LENGTH_WIDTH + x) as usize].color = color;
                 }
                 shift -= 1;
             }

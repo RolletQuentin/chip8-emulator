@@ -9,16 +9,16 @@ use crate::pixel::{Pixel, PixelDisplay};
 const NUMBER_OPCODES: usize = 35;
 
 pub struct CPU {
-    pub memory: [i16; 4096],
-    pub v: [i16; 16],       // Registers
-    pub i: u16,             // Index register
-    pub jump: [u16; 16],    // Jump address
-    pub number_jump: u16,   // Number of jumps
-    pub game_counter: u16,  // Game counter
-    pub sound_counter: u16, // Sound counter
-    pub pc: u16,            // Program counter
-    pub key: [bool; 16],    // Key
-    pub jp: Jump,           // Jump
+    pub memory: [u8; 4096],
+    pub v: [u8; 16],       // Registers
+    pub i: u16,            // Index register
+    pub jump: [u16; 16],   // Jump address
+    pub number_jump: u8,   // Number of jumps
+    pub game_counter: u8,  // Game counter
+    pub sound_counter: u8, // Sound counter
+    pub pc: u16,           // Program counter
+    pub key: [bool; 16],   // Key
+    pub jp: Jump,          // Jump
 }
 
 impl CPU {
@@ -56,7 +56,7 @@ impl CPU {
         let mut i = 0x200;
 
         for byte in rom.iter() {
-            self.memory[i] = *byte as i16;
+            self.memory[i] = *byte as u8;
             i += 1;
         }
 
@@ -178,7 +178,7 @@ impl CPU {
     }
 
     pub fn get_opcode(&self) -> u16 {
-        ((self.memory[self.pc as usize] << 8) + self.memory[(self.pc + 1) as usize]) as u16
+        ((self.memory[self.pc as usize] as u16) << 8) + self.memory[(self.pc + 1) as usize] as u16
     }
 
     pub fn execute_opcode(
@@ -188,8 +188,6 @@ impl CPU {
         pixels: &mut Vec<Pixel>,
     ) {
         let action = self.jp.get_action(opcode);
-
-        println!("Action: {}", action);
 
         let b3 = (opcode & 0x0F00) >> 8;
         let b2 = (opcode & 0x00F0) >> 4;
@@ -226,13 +224,13 @@ impl CPU {
             }
             5 => {
                 // 3XNN : skip next instruction if V[X] == NN
-                if self.v[b3 as usize] == ((b2 << 4) + b1) as i16 {
+                if self.v[b3 as usize] == ((b2 << 4) + b1) as u8 {
                     self.pc += 2;
                 }
             }
             6 => {
                 // 4XNN : skip next instruction if V[X] != NN
-                if self.v[b3 as usize] != ((b2 << 4) + b1) as i16 {
+                if self.v[b3 as usize] != ((b2 << 4) + b1) as u8 {
                     self.pc += 2;
                 }
             }
@@ -244,11 +242,12 @@ impl CPU {
             }
             8 => {
                 // 6XNN : set V[X] = NN
-                self.v[b3 as usize] = ((b2 << 4) + b1) as i16;
+                self.v[b3 as usize] = ((b2 << 4) + b1) as u8;
             }
             9 => {
                 // 7XNN : set V[X] = V[X] + NN
-                self.v[b3 as usize] += ((b2 << 4) + b1) as i16;
+                (self.v[b3 as usize], _) =
+                    self.v[b3 as usize].overflowing_add(((b2 << 4) + b1) as u8);
             }
             10 => {
                 // 8XY0 : set V[X] = V[Y]
@@ -268,17 +267,17 @@ impl CPU {
             }
             14 => {
                 // 8XY4 : set V[X] = V[X] + V[Y], set V[F] = carry
-                if (self.v[b3 as usize] + self.v[b2 as usize]) > 255 {
-                    self.v[0xF] = 1;
-                } else {
-                    self.v[0xF] = 0;
-                }
-                self.v[b3 as usize] += self.v[b2 as usize];
+                let carry;
+                (self.v[b3 as usize], carry) =
+                    self.v[b3 as usize].overflowing_add(self.v[b2 as usize]);
+                self.v[0xF] = carry as u8;
             }
             15 => {
                 // 8XY5 : set V[X] = V[X] - V[Y], set V[F] = NOT borrow
-                self.v[0xF] = (self.v[b3 as usize] > self.v[b2 as usize]) as i16;
-                self.v[b3 as usize] -= self.v[b2 as usize];
+                let borrow;
+                (self.v[b3 as usize], borrow) =
+                    self.v[b3 as usize].overflowing_sub(self.v[b2 as usize]);
+                self.v[0xF] = (!borrow) as u8;
             }
             16 => {
                 // 8XY6 : set V[X] = V[X] SHR 1
@@ -287,8 +286,10 @@ impl CPU {
             }
             17 => {
                 // 8XY7 : set V[X] = V[Y] - V[X], set V[F] = NOT borrow
-                self.v[0xF] = (self.v[b2 as usize] > self.v[b3 as usize]) as i16;
-                self.v[b3 as usize] = self.v[b2 as usize] - self.v[b3 as usize];
+                let borrow;
+                (self.v[b3 as usize], borrow) =
+                    self.v[b2 as usize].overflowing_sub(self.v[b3 as usize]);
+                self.v[0xF] = (!borrow) as u8;
             }
             18 => {
                 // 8XYE : set V[X] = V[X] SHL 1
@@ -312,11 +313,10 @@ impl CPU {
             }
             22 => {
                 // CXNN : set V[X] = random byte AND NN
-                self.v[b3 as usize] = ((rand::random::<u16>()) % ((b2 << 4) + b1 + 1)) as i16;
+                self.v[b3 as usize] = ((rand::random::<u16>()) % ((b2 << 4) + b1 + 1)) as u8;
             }
             23 => {
                 // DXYN : draw a sprite at position V[X], V[Y] with N bytes of sprite data
-                println!("b1: {:X}, b2: {:X}, b3: {:X}", b1, b2, b3);
                 Pixel::draw_screen(self, pixels, b1, b2, b3);
             }
             24 => {
@@ -333,7 +333,7 @@ impl CPU {
             }
             26 => {
                 // FX07 : set V[X] = delay timer value
-                self.v[b3 as usize] = self.game_counter as i16;
+                self.v[b3 as usize] = self.game_counter as u8;
             }
             27 => {
                 // FX0A : wait for a key press, store the value of the key in V[X]
@@ -341,16 +341,17 @@ impl CPU {
             }
             28 => {
                 // FX15 : set delay timer = V[X]
-                self.game_counter = self.v[b3 as usize] as u16;
+                self.game_counter = self.v[b3 as usize] as u8;
             }
             29 => {
                 // FX18 : set sound timer = V[X]
-                self.sound_counter = self.v[b3 as usize] as u16;
+                self.sound_counter = self.v[b3 as usize] as u8;
             }
             30 => {
                 // FX1E : set I = I + V[X]
-                self.v[0xF] = (self.i + self.v[b3 as usize] as u16 > 0xFFF) as i16;
-                self.i += self.v[b3 as usize] as u16;
+                let carry;
+                (self.i, carry) = self.i.overflowing_add(self.v[b3 as usize] as u16);
+                self.v[0xF] = carry as u8;
             }
             31 => {
                 // FX29 : set I = location of sprite for digit V[X]
@@ -359,27 +360,38 @@ impl CPU {
             32 => {
                 // FX33 : store BCD representation of V[X] in memory locations I, I+1, and I+2
 
-                self.memory[self.i as usize] =
-                    (self.v[b3 as usize] - (self.v[b3 as usize] % 100) / 100) as i16;
+                self.memory[self.i as usize] = self.v[b3 as usize]
+                    .checked_sub(self.v[b3 as usize] % 100)
+                    .unwrap_or_default()
+                    / 100;
 
-                self.memory[(self.i + 1) as usize] =
-                    (((self.v[b3 as usize] - self.v[b3 as usize] % 10) / 10) % 10) as i16;
+                self.memory[(self.i + 1) as usize] = ((self.v[b3 as usize]
+                    .checked_sub(self.v[b3 as usize] % 10)
+                    .unwrap_or_default()
+                    / 10)
+                    % 10) as u8;
 
                 self.memory[(self.i + 2) as usize] = (self.v[b3 as usize]
-                    - self.memory[self.i as usize] * 100
-                    - 10 * self.memory[(self.i + 1) as usize])
-                    as i16;
+                    .checked_sub(
+                        self.memory[self.i as usize]
+                            .checked_mul(100)
+                            .unwrap_or_default(),
+                    )
+                    .unwrap_or_default()
+                    .checked_sub(10 * self.memory[(self.i + 1) as usize])
+                    .unwrap_or_default())
+                    as u8;
             }
             33 => {
                 // FX55 : store registers V[0] through V[X] in memory starting at location I
                 for j in 0..=b3 {
-                    self.memory[(self.i + j) as usize] = self.v[j as usize] as i16;
+                    self.memory[(self.i + j) as usize] = self.v[j as usize] as u8;
                 }
             }
             34 => {
                 // FX65 : read registers V[0] through V[X] from memory starting at location I
                 for j in 0..=b3 {
-                    self.v[j as usize] = self.memory[(self.i + j) as usize] as i16;
+                    self.v[j as usize] = self.memory[(self.i + j) as usize] as u8;
                 }
             }
             _ => println!("Unknown opcode: {:X}", opcode),

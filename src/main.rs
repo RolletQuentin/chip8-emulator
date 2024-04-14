@@ -16,7 +16,7 @@ fn main() {
 
     let mut continue_emulation = true;
 
-    let start_emulation = cpu.load_rom("roms/BC_test.ch8");
+    let start_emulation = cpu.load_rom("roms/Breakout.ch8");
 
     if start_emulation {
         while continue_emulation {
